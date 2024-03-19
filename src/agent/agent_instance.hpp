@@ -97,9 +97,29 @@ public:
      */
     Ncp::Controller &GetNcp(void) { return *mNcp; }
 
+
+   /**
+     * This method handles mDNS publisher's state changes.
+     *
+     * @param[in] aState  The state of mDNS publisher.
+     *
+     */
+    void HandleMdnsState(Mdns::Publisher::State aState);
+
+
 private:
     Ncp::Controller *mNcp;
+#if OTBR_ENABLE_MDNS_AVAHI || OTBR_ENABLE_MDNS_MDNSSD || OTBR_ENABLE_MDNS_MOJO
+    std::unique_ptr<Mdns::Publisher> mPublisher;
+#endif
     BorderAgent      mBorderAgent;
+#if OTBR_ENABLE_SRP_ADVERTISING_PROXY
+    AdvertisingProxy mAdvertisingProxy;
+#endif
+#if OTBR_ENABLE_DNSSD_DISCOVERY_PROXY
+    Dnssd::DiscoveryProxy mDiscoveryProxy;
+#endif
+
 };
 
 } // namespace otbr

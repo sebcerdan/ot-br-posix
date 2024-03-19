@@ -54,13 +54,8 @@
 
 namespace otbr {
 
-#if OTBR_ENABLE_NCP_OPENTHREAD
-static const uint16_t kThreadVersion11 = 2; ///< Thread Version 1.1
-static const uint16_t kThreadVersion12 = 3; ///< Thread Version 1.2
-#endif
-
-static const char   kBorderAgentServiceType[] = "_meshcop._udp."; ///< Border agent service type of mDNS
-static const size_t kMaxSizeOfPacket          = 1500;             ///< Max size of packet in bytes.
+static const char    kBorderAgentServiceType[]    = "_meshcop._udp"; ///< Border agent service type of mDNS
+static constexpr int kBorderAgentServiceDummyPort = 49152;
 
 /**
  * Locators
@@ -72,6 +67,67 @@ enum
     kInvalidLocator = 0xffff, ///< invalid locator.
 };
 
+enum : uint8_t
+{
+    kConnectionModeDisabled = 0,
+    kConnectionModePskc     = 1,
+    kConnectionModePskd     = 2,
+    kConnectionModeVendor   = 3,
+    kConnectionModeX509     = 4,
+};
+
+enum : uint8_t
+{
+    kThreadIfStatusNotInitialized = 0,
+    kThreadIfStatusInitialized    = 1,
+    kThreadIfStatusActive         = 2,
+};
+
+enum : uint8_t
+{
+    kAvailabilityInfrequent = 0,
+    kAvailabilityHigh       = 1,
+};
+
+struct StateBitmap
+{
+    uint32_t mConnectionMode : 3;
+    uint32_t mThreadIfStatus : 2;
+    uint32_t mAvailability : 2;
+    uint32_t mBbrIsActive : 1;
+    uint32_t mBbrIsPrimary : 1;
+
+    StateBitmap(void)
+        : mConnectionMode(0)
+        , mThreadIfStatus(0)
+        , mAvailability(0)
+        , mBbrIsActive(0)
+        , mBbrIsPrimary(0)
+    {
+    }
+
+    uint32_t ToUint32(void) const
+    {
+        uint32_t bitmap = 0;
+
+        bitmap |= mConnectionMode << 0;
+        bitmap |= mThreadIfStatus << 3;
+        bitmap |= mAvailability << 5;
+        bitmap |= mBbrIsActive << 7;
+        bitmap |= mBbrIsPrimary << 8;
+
+        return bitmap;
+    }
+};
+
+
+#if OTBR_ENABLE_NCP_OPENTHREAD
+static const uint16_t kThreadVersion11 = 2; ///< Thread Version 1.1
+static const uint16_t kThreadVersion12 = 3; ///< Thread Version 1.2
+#endif
+
+static const size_t kMaxSizeOfPacket          = 1500;             ///< Max size of packet in bytes.
+
 /**
  * UDP ports
  *
@@ -81,9 +137,10 @@ enum
     kBorderAgentUdpPort = 49191, ///< Thread commissioning port.
 };
 
-BorderAgent::BorderAgent(Ncp::Controller *aNcp)
+
+BorderAgent::BorderAgent(Ncp::Controller *aNcp, Mdns::Publisher &aPublisher)
 #if OTBR_ENABLE_MDNS_AVAHI || OTBR_ENABLE_MDNS_MDNSSD || OTBR_ENABLE_MDNS_MOJO
-    : mPublisher(Mdns::Publisher::Create(AF_UNSPEC, NULL, NULL, HandleMdnsState, this))
+    : mPublisher(aPublisher)
 #else
     : mPublisher(NULL)
 #endif
@@ -113,8 +170,8 @@ void BorderAgent::Init(void)
     mNcp->On(Ncp::kEventThreadState, HandleThreadState, this);
     mNcp->On(Ncp::kEventPSKc, HandlePSKc, this);
 
-    otbrLogResult("Check if Thread is up", mNcp->RequestEvent(Ncp::kEventThreadState));
-    otbrLogResult("Check if PSKc is initialized", mNcp->RequestEvent(Ncp::kEventPSKc));
+    otbrLogResult(mNcp->RequestEvent(Ncp::kEventThreadState), "Check if Thread is up");
+    otbrLogResult(mNcp->RequestEvent(Ncp::kEventPSKc), "Check if PSKc is initialized");
 }
 
 otbrError BorderAgent::Start(void)
@@ -153,7 +210,7 @@ otbrError BorderAgent::Start(void)
     ExitNow();
 
 exit:
-    otbrLogResult("Start Thread Border Agent", error);
+    otbrLogResult(error, "Start Thread Border Agent");
     return error;
 }
 
@@ -167,33 +224,165 @@ void BorderAgent::Stop(void)
     }
 #endif // OTBR_ENABLE_NCP_WPANTUND
 
-#if OTBR_ENABLE_MDNS_AVAHI || OTBR_ENABLE_MDNS_MDNSSD || OTBR_ENABLE_MDNS_MOJO
-    StopPublishService();
-#endif
+    otbrLogInfo("Stop Thread Border Agent");
+    UnpublishMeshCopService();
 }
 
-BorderAgent::~BorderAgent(void)
+void BorderAgent::UnpublishMeshCopService(void)
 {
-    Stop();
+    otbrLogInfo("Unpublish meshcop service %s.%s.local", mServiceInstanceName.c_str(), kBorderAgentServiceType);
 
-    if (mPublisher != NULL)
+    mPublisher.UnpublishService(mServiceInstanceName, kBorderAgentServiceType, [this](otbrError aError) {
+        otbrLogResult(aError, "Result of unpublish meshcop service %s.%s.local", mServiceInstanceName.c_str(),
+                      kBorderAgentServiceType);
+    });
+}
+
+void BorderAgent::PublishMeshCopService(void)
+{
+    StateBitmap              state;
+    uint32_t                 stateUint32;
+    otInstance              *instance    = mNcp.GetInstance();
+    const otExtendedPanId   *extPanId    = otThreadGetExtendedPanId(instance);
+    const otExtAddress      *extAddr     = otLinkGetExtendedAddress(instance);
+    const char              *networkName = otThreadGetNetworkName(instance);
+    Mdns::Publisher::TxtList txtList{{"rv", "1"}};
+    Mdns::Publisher::TxtData txtData;
+    int                      port;
+    otbrError                error;
+
+    OTBR_UNUSED_VARIABLE(error);
+
+    otbrLogInfo("Publish meshcop service %s.%s.local.", mServiceInstanceName.c_str(), kBorderAgentServiceType);
+
+#if OTBR_ENABLE_PUBLISH_MESHCOP_BA_ID
     {
-        delete mPublisher;
-        mPublisher = NULL;
+        otError         error;
+        otBorderAgentId id;
+
+        error = otBorderAgentGetId(instance, &id);
+        if (error == OT_ERROR_NONE)
+        {
+            txtList.emplace_back("id", id.mId, sizeof(id));
+        }
+        else
+        {
+            otbrLogWarning("Failed to retrieve Border Agent ID: %s", otThreadErrorToString(error));
+        }
     }
+#endif
+
+    if (!mVendorOui.empty())
+    {
+        txtList.emplace_back("vo", mVendorOui.data(), mVendorOui.size());
+    }
+    if (!mVendorName.empty())
+    {
+        txtList.emplace_back("vn", mVendorName.c_str());
+    }
+    if (!mProductName.empty())
+    {
+        txtList.emplace_back("mn", mProductName.c_str());
+    }
+    txtList.emplace_back("nn", networkName);
+    txtList.emplace_back("xp", extPanId->m8, sizeof(extPanId->m8));
+    txtList.emplace_back("tv", mNcp.GetThreadVersion());
+
+    // "xa" stands for Extended MAC Address (64-bit) of the Thread Interface of the Border Agent.
+    txtList.emplace_back("xa", extAddr->m8, sizeof(extAddr->m8));
+
+    state       = GetStateBitmap(*instance);
+    stateUint32 = htobe32(state.ToUint32());
+    txtList.emplace_back("sb", reinterpret_cast<uint8_t *>(&stateUint32), sizeof(stateUint32));
+
+    if (state.mThreadIfStatus == kThreadIfStatusActive)
+    {
+        uint32_t partitionId;
+
+        AppendActiveTimestampTxtEntry(*instance, txtList);
+        partitionId = otThreadGetPartitionId(instance);
+        txtList.emplace_back("pt", reinterpret_cast<uint8_t *>(&partitionId), sizeof(partitionId));
+    }
+
+#if OTBR_ENABLE_BACKBONE_ROUTER
+    AppendBbrTxtEntries(*instance, state, txtList);
+#endif
+#if OTBR_ENABLE_BORDER_ROUTING
+    AppendOmrTxtEntry(*instance, txtList);
+#endif
+#if OTBR_ENABLE_DBUS_SERVER
+    AppendVendorTxtEntries(mMeshCopTxtUpdate, txtList);
+#endif
+
+    if (otBorderAgentGetState(instance) != OT_BORDER_AGENT_STATE_STOPPED)
+    {
+        port = otBorderAgentGetUdpPort(instance);
+    }
+    else
+    {
+        // When thread interface is not active, the border agent is not started, thus it's not listening to any port and
+        // not handling requests. In such situation, we use a dummy port number for publishing the MeshCoP service to
+        // advertise the status of the border router. One can learn the thread interface status from `sb` entry so it
+        // doesn't have to send requests to the dummy port when border agent is not running.
+        port = kBorderAgentServiceDummyPort;
+    }
+
+    error = Mdns::Publisher::EncodeTxtData(txtList, txtData);
+    assert(error == OTBR_ERROR_NONE);
+
+    mPublisher.PublishService(/* aHostName */ "", mServiceInstanceName, kBorderAgentServiceType,
+                              Mdns::Publisher::SubTypeList{}, port, txtData, [this](otbrError aError) {
+                                  if (aError == OTBR_ERROR_ABORTED)
+                                  {
+                                      // OTBR_ERROR_ABORTED is thrown when an ongoing service registration is
+                                      // cancelled. This can happen when the meshcop service is being updated
+                                      // frequently. To avoid false alarms, it should not be logged like a real error.
+                                      otbrLogInfo("Cancelled previous publishing meshcop service %s.%s.local",
+                                                  mServiceInstanceName.c_str(), kBorderAgentServiceType);
+                                  }
+                                  else
+                                  {
+                                      otbrLogResult(aError, "Result of publish meshcop service %s.%s.local",
+                                                    mServiceInstanceName.c_str(), kBorderAgentServiceType);
+                                  }
+                                  if (aError == OTBR_ERROR_DUPLICATED)
+                                  {
+                                      // Try to unpublish current service in case we are trying to register
+                                      // multiple new services simultaneously when the original service name
+                                      // is conflicted.
+                                      UnpublishMeshCopService();
+                                      mServiceInstanceName = GetAlternativeServiceInstanceName();
+                                      PublishMeshCopService();
+                                  }
+                              });
 }
 
-void BorderAgent::HandleMdnsState(Mdns::State aState)
+void BorderAgent::UpdateMeshCopService(void)
 {
+    VerifyOrExit(IsEnabled());
+    VerifyOrExit(mPublisher.IsStarted());
+    PublishMeshCopService();
+
+exit:
+    return;
+}
+
+
+void BorderAgent::HandleMdnsState(Mdns::Publisher::State aState)
+{
+    VerifyOrExit(IsEnabled());
+
     switch (aState)
     {
-    case Mdns::kStateReady:
-        PublishService();
+    case Mdns::Publisher::State::kReady:
+        UpdateMeshCopService();
         break;
     default:
-        otbrLog(OTBR_LOG_WARNING, "MDNS service not available!");
+        otbrLogWarning("mDNS publisher not available!");
         break;
     }
+exit:
+    return;
 }
 
 #if OTBR_ENABLE_NCP_WPANTUND

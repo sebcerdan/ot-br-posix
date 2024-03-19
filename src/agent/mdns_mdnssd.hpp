@@ -28,151 +28,338 @@
 
 /**
  * @file
- *   This file includes definition for MDNS service.
+ *   This file includes definition for mDNS publisher.
  */
 
 #ifndef OTBR_AGENT_MDNS_MDNSSD_HPP_
 #define OTBR_AGENT_MDNS_MDNSSD_HPP_
 
+#include "openthread-br/config.h"
+
+#include <array>
+#include <map>
+#include <memory>
+#include <utility>
 #include <vector>
 
+#include <assert.h>
 #include <dns_sd.h>
 
-#include "agent/mdns.hpp"
+#include "common/code_utils.hpp"
+#include "common/mainloop.hpp"
 #include "common/types.hpp"
+#include "mdns/mdns.hpp"
 
 namespace otbr {
 
 namespace Mdns {
 
 /**
- * This class implements MDNS service with avahi.
+ * This class implements mDNS publisher with mDNSResponder.
  *
  */
-class PublisherMDnsSd : public Publisher
+class PublisherMDnsSd : public MainloopProcessor, public Publisher
 {
 public:
-    /**
-     * The constructor to initialize a Publisher.
-     *
-     * @param[in]   aProtocol           The protocol used for publishing. IPv4, IPv6 or both.
-     * @param[in]   aHost               The name of host residing the services to be published.
-                                        NULL to use default.
-     * @param[in]   aDomain             The domain of the host. NULL to use default.
-     * @param[in]   aHandler            The function to be called when state changes.
-     * @param[in]   aContext            A pointer to application-specific context.
-     *
-     */
-    PublisherMDnsSd(int aProtocol, const char *aHost, const char *aDomain, StateHandler aHandler, void *aContext);
+    explicit PublisherMDnsSd(StateCallback aCallback);
 
-    ~PublisherMDnsSd(void);
+    ~PublisherMDnsSd(void) override;
 
-    /**
-     * This method publishes or updates a service.
-     *
-     * @note only text record can be updated.
-     *
-     * @param[in]   aName               The name of this service.
-     * @param[in]   aType               The type of this service.
-     * @param[in]   aPort               The port number of this service.
-     * @param[in]   ...                 Pointers to null-terminated string of key and value for text record.
-     *                                  The last argument must be NULL.
-     *
-     * @retval  OTBR_ERROR_NONE     Successfully published or updated the service.
-     * @retval  OTBR_ERROR_ERRNO    Failed to publish or update the service.
-     *
-     */
-    otbrError PublishService(uint16_t aPort, const char *aName, const char *aType, ...);
+    // Implementation of Mdns::Publisher.
 
-    /**
-     * This method starts the MDNS service.
-     *
-     * @retval OTBR_ERROR_NONE  Successfully started MDNS service;
-     * @retval OTBR_ERROR_MDNS  Failed to start MDNS service.
-     *
-     */
-    otbrError Start(void);
+    void UnpublishService(const std::string &aName, const std::string &aType, ResultCallback &&aCallback) override;
 
-    /**
-     * This method checks if publisher has been started.
-     *
-     * @retval true     Already started.
-     * @retval false    Not started.
-     *
-     */
-    bool IsStarted(void) const;
+    void      UnpublishHost(const std::string &aName, ResultCallback &&aCallback) override;
+    void      UnpublishKey(const std::string &aName, ResultCallback &&aCallback) override;
+    void      SubscribeService(const std::string &aType, const std::string &aInstanceName) override;
+    void      UnsubscribeService(const std::string &aType, const std::string &aInstanceName) override;
+    void      SubscribeHost(const std::string &aHostName) override;
+    void      UnsubscribeHost(const std::string &aHostName) override;
+    otbrError Start(void) override;
+    bool      IsStarted(void) const override;
+    void      Stop(void) override { Stop(kNormalStop); }
 
-    /**
-     * This method stops the MDNS service.
-     *
-     */
-    void Stop(void);
+    // Implementation of MainloopProcessor.
 
-    /**
-     * This method performs avahi poll processing.
-     *
-     * @param[in]   aReadFdSet          A reference to read file descriptors.
-     * @param[in]   aWriteFdSet         A reference to write file descriptors.
-     * @param[in]   aErrorFdSet         A reference to error file descriptors.
-     *
-     */
-    void Process(const fd_set &aReadFdSet, const fd_set &aWriteFdSet, const fd_set &aErrorFdSet);
+    void Update(MainloopContext &aMainloop) override;
+    void Process(const MainloopContext &aMainloop) override;
 
-    /**
-     * This method updates the fd_set and timeout for mainloop.
-     *
-     * @param[inout]    aReadFdSet      A reference to fd_set for polling read.
-     * @param[inout]    aWriteFdSet     A reference to fd_set for polling write.
-     * @param[inout]    aErrorFdSet     A reference to fd_set for polling error.
-     * @param[inout]    aMaxFd          A reference to the max file descriptor.
-     * @param[inout]    aTimeout        A reference to the timeout.
-     *
-     */
-    void UpdateFdSet(fd_set &aReadFdSet, fd_set &aWriteFdSet, fd_set &aErrorFdSet, int &aMaxFd, timeval &aTimeout);
+protected:
+    otbrError PublishServiceImpl(const std::string &aHostName,
+                                 const std::string &aName,
+                                 const std::string &aType,
+                                 const SubTypeList &aSubTypeList,
+                                 uint16_t           aPort,
+                                 const TxtData     &aTxtData,
+                                 ResultCallback   &&aCallback) override;
+    otbrError PublishHostImpl(const std::string &aName,
+                              const AddressList &aAddress,
+                              ResultCallback   &&aCallback) override;
+    otbrError PublishKeyImpl(const std::string &aName, const KeyData &aKeyData, ResultCallback &&aCallback) override;
+    void      OnServiceResolveFailedImpl(const std::string &aType,
+                                         const std::string &aInstanceName,
+                                         int32_t            aErrorCode) override;
+    void      OnHostResolveFailedImpl(const std::string &aHostName, int32_t aErrorCode) override;
+    otbrError DnsErrorToOtbrError(int32_t aErrorCode) override;
 
 private:
-    void DiscardService(const char *aName, const char *aType, DNSServiceRef aServiceRef);
-    void RecordService(const char *aName, const char *aType, DNSServiceRef aServiceRef);
+    static constexpr uint32_t kDefaultTtl = 10;
 
-    static void HandleServiceRegisterResult(DNSServiceRef         aService,
-                                            const DNSServiceFlags aFlags,
-                                            DNSServiceErrorType   aError,
-                                            const char *          aName,
-                                            const char *          aType,
-                                            const char *          aDomain,
-                                            void *                aContext);
-    void        HandleServiceRegisterResult(DNSServiceRef         aService,
-                                            const DNSServiceFlags aFlags,
-                                            DNSServiceErrorType   aError,
-                                            const char *          aName,
-                                            const char *          aType,
-                                            const char *          aDomain);
-
-    enum
+    enum StopMode : uint8_t
     {
-        kMaxSizeOfTxtRecord   = 128,
-        kMaxSizeOfServiceName = kDNSServiceMaxServiceName,
-        kMaxSizeOfHost        = 128,
-        kMaxSizeOfDomain      = kDNSServiceMaxDomainName,
-        kMaxSizeOfServiceType = 64,
-        kMaxTextRecordSize    = 255,
+        kNormalStop,
+        kStopOnServiceNotRunningError,
     };
 
-    struct Service
+    class DnssdKeyRegistration;
+
+    class DnssdServiceRegistration : public ServiceRegistration
     {
-        char          mName[kMaxSizeOfServiceName];
-        char          mType[kMaxSizeOfServiceType];
-        DNSServiceRef mService;
+        friend class DnssdKeyRegistration;
+
+    public:
+        using ServiceRegistration::ServiceRegistration; // Inherit base constructor
+
+        ~DnssdServiceRegistration(void) override { Unregister(); }
+
+        void      Update(MainloopContext &aMainloop) const;
+        void      Process(const MainloopContext &aMainloop, std::vector<DNSServiceRef> &aReadyServices) const;
+        otbrError Register(void);
+
+    private:
+        void             Unregister(void);
+        PublisherMDnsSd &GetPublisher(void) { return *static_cast<PublisherMDnsSd *>(mPublisher); }
+        void             HandleRegisterResult(DNSServiceFlags aFlags, DNSServiceErrorType aError);
+        static void      HandleRegisterResult(DNSServiceRef       aServiceRef,
+                                              DNSServiceFlags     aFlags,
+                                              DNSServiceErrorType aError,
+                                              const char         *aName,
+                                              const char         *aType,
+                                              const char         *aDomain,
+                                              void               *aContext);
+
+        DNSServiceRef         mServiceRef    = nullptr;
+        DnssdKeyRegistration *mRelatedKeyReg = nullptr;
     };
 
-    typedef std::vector<Service> Services;
+    class DnssdHostRegistration : public HostRegistration
+    {
+    public:
+        using HostRegistration::HostRegistration; // Inherit base class constructor
 
-    Services     mServices;
-    const char * mHost;
-    const char * mDomain;
-    State        mState;
-    StateHandler mStateHandler;
-    void *       mContext;
+        ~DnssdHostRegistration(void) override { Unregister(); }
+
+        otbrError Register(void);
+
+    private:
+        void             Unregister(void);
+        PublisherMDnsSd &GetPublisher(void) { return *static_cast<PublisherMDnsSd *>(mPublisher); }
+        void             HandleRegisterResult(DNSRecordRef aRecordRef, DNSServiceErrorType aError);
+        static void      HandleRegisterResult(DNSServiceRef       aServiceRef,
+                                              DNSRecordRef        aRecordRef,
+                                              DNSServiceFlags     aFlags,
+                                              DNSServiceErrorType aErrorCode,
+                                              void               *aContext);
+
+        std::vector<DNSRecordRef> mAddrRecordRefs;
+        std::vector<bool>         mAddrRegistered;
+    };
+
+    class DnssdKeyRegistration : public KeyRegistration
+    {
+        friend class DnssdServiceRegistration;
+
+    public:
+        using KeyRegistration::KeyRegistration; // Inherit base class constructor
+
+        ~DnssdKeyRegistration(void) override { Unregister(); }
+
+        otbrError Register(void);
+
+    private:
+        void             Unregister(void);
+        PublisherMDnsSd &GetPublisher(void) { return *static_cast<PublisherMDnsSd *>(mPublisher); }
+        void             HandleRegisterResult(DNSServiceErrorType aError);
+        static void      HandleRegisterResult(DNSServiceRef       aServiceRef,
+                                              DNSRecordRef        aRecordRef,
+                                              DNSServiceFlags     aFlags,
+                                              DNSServiceErrorType aErrorCode,
+                                              void               *aContext);
+
+        DNSRecordRef              mRecordRef         = nullptr;
+        DnssdServiceRegistration *mRelatedServiceReg = nullptr;
+    };
+
+    struct ServiceRef : private ::NonCopyable
+    {
+        DNSServiceRef    mServiceRef;
+        PublisherMDnsSd &mPublisher;
+
+        explicit ServiceRef(PublisherMDnsSd &aPublisher)
+            : mServiceRef(nullptr)
+            , mPublisher(aPublisher)
+        {
+        }
+
+        ~ServiceRef() { Release(); }
+
+        void Update(MainloopContext &aMainloop) const;
+        void Process(const MainloopContext &aMainloop, std::vector<DNSServiceRef> &aReadyServices) const;
+        void Release(void);
+        void DeallocateServiceRef(void);
+    };
+
+    struct ServiceSubscription;
+
+    struct ServiceInstanceResolution : public ServiceRef
+    {
+        explicit ServiceInstanceResolution(ServiceSubscription &aSubscription,
+                                           std::string          aInstanceName,
+                                           std::string          aType,
+                                           std::string          aDomain,
+                                           uint32_t             aNetifIndex)
+            : ServiceRef(aSubscription.mPublisher)
+            , mSubscription(&aSubscription)
+            , mInstanceName(std::move(aInstanceName))
+            , mType(std::move(aType))
+            , mDomain(std::move(aDomain))
+            , mNetifIndex(aNetifIndex)
+        {
+        }
+
+        void      Resolve(void);
+        otbrError GetAddrInfo(uint32_t aInterfaceIndex);
+        void      FinishResolution(void);
+
+        static void HandleResolveResult(DNSServiceRef        aServiceRef,
+                                        DNSServiceFlags      aFlags,
+                                        uint32_t             aInterfaceIndex,
+                                        DNSServiceErrorType  aErrorCode,
+                                        const char          *aFullName,
+                                        const char          *aHostTarget,
+                                        uint16_t             aPort, // In network byte order.
+                                        uint16_t             aTxtLen,
+                                        const unsigned char *aTxtRecord,
+                                        void                *aContext);
+        void        HandleResolveResult(DNSServiceRef        aServiceRef,
+                                        DNSServiceFlags      aFlags,
+                                        uint32_t             aInterfaceIndex,
+                                        DNSServiceErrorType  aErrorCode,
+                                        const char          *aFullName,
+                                        const char          *aHostTarget,
+                                        uint16_t             aPort, // In network byte order.
+                                        uint16_t             aTxtLen,
+                                        const unsigned char *aTxtRecord);
+        static void HandleGetAddrInfoResult(DNSServiceRef          aServiceRef,
+                                            DNSServiceFlags        aFlags,
+                                            uint32_t               aInterfaceIndex,
+                                            DNSServiceErrorType    aErrorCode,
+                                            const char            *aHostName,
+                                            const struct sockaddr *aAddress,
+                                            uint32_t               aTtl,
+                                            void                  *aContext);
+        void        HandleGetAddrInfoResult(DNSServiceRef          aServiceRef,
+                                            DNSServiceFlags        aFlags,
+                                            uint32_t               aInterfaceIndex,
+                                            DNSServiceErrorType    aErrorCode,
+                                            const char            *aHostName,
+                                            const struct sockaddr *aAddress,
+                                            uint32_t               aTtl);
+
+        ServiceSubscription   *mSubscription;
+        std::string            mInstanceName;
+        std::string            mType;
+        std::string            mDomain;
+        uint32_t               mNetifIndex;
+        DiscoveredInstanceInfo mInstanceInfo;
+    };
+
+    struct ServiceSubscription : public ServiceRef
+    {
+        explicit ServiceSubscription(PublisherMDnsSd &aPublisher, std::string aType, std::string aInstanceName)
+            : ServiceRef(aPublisher)
+            , mType(std::move(aType))
+            , mInstanceName(std::move(aInstanceName))
+        {
+        }
+
+        void Browse(void);
+        void Resolve(uint32_t           aNetifIndex,
+                     const std::string &aInstanceName,
+                     const std::string &aType,
+                     const std::string &aDomain);
+        void UpdateAll(MainloopContext &aMainloop) const;
+        void ProcessAll(const MainloopContext &aMainloop, std::vector<DNSServiceRef> &aReadyServices) const;
+
+        static void HandleBrowseResult(DNSServiceRef       aServiceRef,
+                                       DNSServiceFlags     aFlags,
+                                       uint32_t            aInterfaceIndex,
+                                       DNSServiceErrorType aErrorCode,
+                                       const char         *aInstanceName,
+                                       const char         *aType,
+                                       const char         *aDomain,
+                                       void               *aContext);
+        void        HandleBrowseResult(DNSServiceRef       aServiceRef,
+                                       DNSServiceFlags     aFlags,
+                                       uint32_t            aInterfaceIndex,
+                                       DNSServiceErrorType aErrorCode,
+                                       const char         *aInstanceName,
+                                       const char         *aType,
+                                       const char         *aDomain);
+
+        std::string mType;
+        std::string mInstanceName;
+
+        std::vector<std::unique_ptr<ServiceInstanceResolution>> mResolvingInstances;
+    };
+
+    struct HostSubscription : public ServiceRef
+    {
+        explicit HostSubscription(PublisherMDnsSd &aPublisher, std::string aHostName)
+            : ServiceRef(aPublisher)
+            , mHostName(std::move(aHostName))
+        {
+        }
+
+        void        Resolve(void);
+        static void HandleResolveResult(DNSServiceRef          aServiceRef,
+                                        DNSServiceFlags        aFlags,
+                                        uint32_t               aInterfaceIndex,
+                                        DNSServiceErrorType    aErrorCode,
+                                        const char            *aHostName,
+                                        const struct sockaddr *aAddress,
+                                        uint32_t               aTtl,
+                                        void                  *aContext);
+        void        HandleResolveResult(DNSServiceRef          aServiceRef,
+                                        DNSServiceFlags        aFlags,
+                                        uint32_t               aInterfaceIndex,
+                                        DNSServiceErrorType    aErrorCode,
+                                        const char            *aHostName,
+                                        const struct sockaddr *aAddress,
+                                        uint32_t               aTtl);
+
+        std::string        mHostName;
+        DiscoveredHostInfo mHostInfo;
+    };
+
+    using ServiceSubscriptionList = std::vector<std::unique_ptr<ServiceSubscription>>;
+    using HostSubscriptionList    = std::vector<std::unique_ptr<HostSubscription>>;
+
+    static std::string MakeRegType(const std::string &aType, SubTypeList aSubTypeList);
+
+    void                Stop(StopMode aStopMode);
+    DNSServiceErrorType CreateSharedHostsRef(void);
+    void                DeallocateHostsRef(void);
+    void                HandleServiceRefDeallocating(const DNSServiceRef &aServiceRef);
+
+    DNSServiceRef mHostsRef;
+    State         mState;
+    StateCallback mStateCallback;
+
+    ServiceSubscriptionList mSubscribedServices;
+    HostSubscriptionList    mSubscribedHosts;
+
+    std::vector<DNSServiceRef> mServiceRefsToProcess;
 };
 
 /**

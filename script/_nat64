@@ -121,6 +121,7 @@ esac
 EOF
     sudo chmod a+x $NAT44_SERVICE
     if have systemctl; then
+	sudo systemctl enable named
         sudo systemctl stop tayga || die 'Unable to stop tayga service!'
         sudo systemctl enable otbr-nat44 || die 'Unable to enable nat44 service!'
     fi

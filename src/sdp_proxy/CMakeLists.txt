@@ -1,5 +1,5 @@
 #
-#  Copyright (c) 2017, The OpenThread Authors.
+#  Copyright (c) 2021, The OpenThread Authors.
 #  All rights reserved.
 #
 #  Redistribution and use in source and binary forms, with or without
@@ -26,39 +26,14 @@
 #  POSSIBILITY OF SUCH DAMAGE.
 #
 
-include $(abs_top_nlbuild_autotools_dir)/automake/pre.am
+add_library(otbr-sdp-proxy
+    advertising_proxy.cpp
+    advertising_proxy.hpp
+    discovery_proxy.cpp
+    discovery_proxy.hpp
+)
 
-# Always package (e.g. for 'make dist') these subdirectories.
-
-DIST_SUBDIRS                                         = \
-    agent                                              \
-    commissioner                                       \
-    common                                             \
-    dbus                                               \
-    utils                                              \
-    web                                                \
-    sdp_proxy					       \
-    $(NULL)
-
-# Always build (e.g. for 'make all') these subdirectories.
-
-SUBDIRS                                              = \
-    common                                             \
-    utils                                              \
-    $(NULL)
-
-if OTBR_ENABLE_DBUS_SERVER
-SUBDIRS                                             += dbus
-endif
-
-SUBDIRS                                             += agent
-
-if OTBR_ENABLE_COMMISSIONER
-SUBDIRS                                             += commissioner
-endif
-
-if OTBR_ENABLE_WEB_SERVICE
-SUBDIRS                                             += web
-endif
-
-include $(abs_top_nlbuild_autotools_dir)/automake/post.am
+target_link_libraries(otbr-sdp-proxy PRIVATE
+    $<$<BOOL:${OTBR_MDNS}>:otbr-mdns>
+    otbr-common
+)

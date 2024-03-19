@@ -34,6 +34,7 @@
 #define __APPLE_USE_RFC_3542
 #endif
 
+#define OTBR_LOG_TAG "Dtls_mbedtls"
 #include "common/dtls_mbedtls.hpp"
 
 #include <algorithm>
@@ -95,7 +96,7 @@ void MbedtlsServer::MbedtlsDebug(void *aContext, int aLevel, const char *aFile, 
 
 void MbedtlsServer::MbedtlsDebug(int aLevel, const char *aFile, int aLine, const char *aMessage)
 {
-    int level = 0;
+    otbrLogLevel level = OTBR_LOG_EMERG;
 
     switch (aLevel)
     {
@@ -125,7 +126,7 @@ void MbedtlsServer::MbedtlsDebug(int aLevel, const char *aFile, int aLine, const
 
     if (level != 0)
     {
-        otbrLog(aLevel, "DTLS[:%hu] %s:%04d: %s", mPort, aFile, aLine, aMessage);
+        otbrLog(level, OTBR_LOG_TAG, "DTLS[:%hu] %s:%04d: %s", mPort, aFile, aLine, aMessage);
     }
 }
 
@@ -182,7 +183,7 @@ exit:
 
     if (error != 0)
     {
-        otbrLog(OTBR_LOG_ERR, "mbedtls error: -0x%04x!", error);
+        otbrLog(OTBR_LOG_ERR, OTBR_LOG_TAG, "mbedtls error: -0x%04x!", error);
         ret = OTBR_ERROR_DTLS;
     }
 
@@ -206,13 +207,13 @@ otbrError MbedtlsServer::Bind(void)
     SuccessOrExit(setsockopt(mSocket, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one)));
     SuccessOrExit(bind(mSocket, reinterpret_cast<struct sockaddr *>(&sin6), sizeof(sin6)));
 
-    otbrLog(OTBR_LOG_INFO, "DTLS bound to port %u.", mPort);
+    otbrLog(OTBR_LOG_INFO, OTBR_LOG_TAG, "DTLS bound to port %u.", mPort);
     ret = OTBR_ERROR_NONE;
 
 exit:
     if (ret)
     {
-        otbrLog(OTBR_LOG_ERR, "DTLS failed to bind to port %u: %s!", mPort, strerror(errno));
+        otbrLog(OTBR_LOG_ERR, OTBR_LOG_TAG, "DTLS failed to bind to port %u: %s!", mPort, strerror(errno));
     }
 
     return ret;
@@ -268,7 +269,7 @@ MbedtlsSession::~MbedtlsSession(void)
         mbedtls_net_free(&mNet);
     }
     mbedtls_ssl_free(&mSsl);
-    otbrLog(OTBR_LOG_INFO, "DTLS session destroyed: %d.", mState);
+    otbrLog(OTBR_LOG_INFO, OTBR_LOG_TAG, "DTLS session destroyed: %d.", mState);
 }
 
 void MbedtlsSession::Process(void)
@@ -312,17 +313,17 @@ int MbedtlsSession::Read(void)
             ;
 
         case MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY:
-            otbrLog(OTBR_LOG_WARNING, "DTLS session closed gracefully.");
+            otbrLog(OTBR_LOG_WARNING, OTBR_LOG_TAG, "DTLS session closed gracefully.");
             SetState(kStateClose);
             break;
 
         case MBEDTLS_ERR_SSL_CLIENT_RECONNECT:
-            otbrLog(OTBR_LOG_WARNING, "DTLS session reconnecting.");
+            otbrLog(OTBR_LOG_WARNING, OTBR_LOG_TAG, "DTLS session reconnecting.");
             SetState(kStateHandshaking);
             break;
 
         case MBEDTLS_ERR_SSL_TIMEOUT:
-            otbrLog(OTBR_LOG_WARNING, "DTLS read timeout!");
+            otbrLog(OTBR_LOG_WARNING, OTBR_LOG_TAG, "DTLS read timeout!");
             break;
 
         case MBEDTLS_ERR_SSL_WANT_READ:
@@ -330,7 +331,7 @@ int MbedtlsSession::Read(void)
             break;
 
         default:
-            otbrLog(OTBR_LOG_ERR, "DTLS read error: -0x%04x!", -ret);
+            otbrLog(OTBR_LOG_ERR, OTBR_LOG_TAG, "DTLS read error: -0x%04x!", -ret);
             SetState(kStateError);
             break;
         }
@@ -441,7 +442,7 @@ otbrError MbedtlsSession::Init(void)
 exit:
     if (rval)
     {
-        otbrLog(OTBR_LOG_ERR, "Failed to create session: -0x%04x!", -rval);
+        otbrLog(OTBR_LOG_ERR, OTBR_LOG_TAG, "Failed to create session: -0x%04x!", -rval);
         error = OTBR_ERROR_DTLS;
     }
 
@@ -475,13 +476,13 @@ int MbedtlsSession::Handshake(void)
 {
     int ret = 0;
 
-    VerifyOrExit(mState == kStateHandshaking, otbrLog(OTBR_LOG_ERR, "Invalid DTLS session state!"));
+    VerifyOrExit(mState == kStateHandshaking, otbrLog(OTBR_LOG_ERR, OTBR_LOG_TAG, "Invalid DTLS session state!"));
 
-    otbrLog(OTBR_LOG_INFO, "DTLS handshaking...");
+    otbrLog(OTBR_LOG_INFO, OTBR_LOG_TAG, "DTLS handshaking...");
 
     SuccessOrExit(ret = mbedtls_ssl_handshake(&mSsl));
 
-    otbrLog(OTBR_LOG_INFO, "DTLS session ready.");
+    otbrLog(OTBR_LOG_INFO, OTBR_LOG_TAG, "DTLS session ready.");
 
     SetState(kStateReady);
 
@@ -491,11 +492,11 @@ exit:
     {
         if (ret == MBEDTLS_ERR_SSL_WANT_READ || ret == MBEDTLS_ERR_SSL_WANT_WRITE)
         {
-            otbrLog(OTBR_LOG_INFO, "DTLS handshake pending: -0x%04x.", -ret);
+            otbrLog(OTBR_LOG_INFO, OTBR_LOG_TAG, "DTLS handshake pending: -0x%04x.", -ret);
         }
         else
         {
-            otbrLog(OTBR_LOG_ERR, "DTLS handshake failed: -0x%04x!", -ret);
+            otbrLog(OTBR_LOG_ERR, OTBR_LOG_TAG, "DTLS handshake failed: -0x%04x!", -ret);
             if (ret != MBEDTLS_ERR_SSL_HELLO_VERIFY_REQUIRED)
             {
                 mbedtls_ssl_send_alert_message(&mSsl, MBEDTLS_SSL_ALERT_LEVEL_FATAL,
@@ -523,7 +524,7 @@ void MbedtlsServer::UpdateFdSet(fd_set & aReadFdSet,
 
         if (session->GetExpiration() <= now)
         {
-            otbrLog(OTBR_LOG_INFO, "DTLS session timeout!");
+            otbrLog(OTBR_LOG_INFO, OTBR_LOG_TAG, "DTLS session timeout!");
             HandleSessionState(*session, Session::kStateExpired);
             delete session;
             it = mSessions.erase(it);
@@ -532,7 +533,7 @@ void MbedtlsServer::UpdateFdSet(fd_set & aReadFdSet,
         {
             int fd = session->GetFd();
 
-            otbrLog(OTBR_LOG_INFO, "DTLS session[%d] alive.", fd);
+            otbrLog(OTBR_LOG_INFO, OTBR_LOG_TAG, "DTLS session[%d] alive.", fd);
             FD_SET(fd, &aReadFdSet);
 
             if (aMaxFd < fd)
@@ -574,7 +575,7 @@ void MbedtlsServer::UpdateFdSet(fd_set & aReadFdSet,
 
 void MbedtlsServer::HandleSessionState(Session &aSession, Session::State aState)
 {
-    otbrLog(OTBR_LOG_INFO, "DTLS session state changed to %d.", aState);
+    otbrLog(OTBR_LOG_INFO, OTBR_LOG_TAG, "DTLS session state changed to %d.", aState);
     if (mStateHandler)
     {
         mStateHandler(aSession, aState, mContext);
@@ -597,7 +598,7 @@ void MbedtlsServer::ProcessServer(const fd_set &aReadFdSet, const fd_set &aWrite
     /* If this is not set, then some other handle became rd/wr able, it is not an error */
     VerifyOrExit(FD_ISSET(mSocket, &aReadFdSet), error = OTBR_ERROR_NONE);
 
-    otbrLog(OTBR_LOG_INFO, "Trying to accept connection...");
+    otbrLog(OTBR_LOG_INFO, OTBR_LOG_TAG, "Trying to accept connection...");
     memset(&src, 0, sizeof(src));
     memset(&dst, 0, sizeof(dst));
     memset(&msghdr, 0, sizeof(msghdr));
@@ -645,14 +646,14 @@ void MbedtlsServer::ProcessServer(const fd_set &aReadFdSet, const fd_set &aWrite
 exit:
     if (error)
     {
-        otbrLog(OTBR_LOG_ERR, "DTLS failed to initiate new session: %s.", otbrErrorString(error));
-        otbrLog(OTBR_LOG_INFO, "Trying to create new server socket...");
+        otbrLog(OTBR_LOG_ERR, OTBR_LOG_TAG, "DTLS failed to initiate new session: %s.", otbrErrorString(error));
+        otbrLog(OTBR_LOG_INFO, OTBR_LOG_TAG, "Trying to create new server socket...");
         close(mSocket);
         mSocket = -1;
 
         if (Bind())
         {
-            otbrLog(OTBR_LOG_ERR, "Unable create new server socket! Die now!");
+            otbrLog(OTBR_LOG_ERR, OTBR_LOG_TAG, "Unable create new server socket! Die now!");
             abort();
         }
     }
@@ -670,7 +671,7 @@ void MbedtlsServer::Process(const fd_set &aReadFdSet, const fd_set &aWriteFdSet,
 
         if (FD_ISSET(fd, &aReadFdSet))
         {
-            otbrLog(OTBR_LOG_INFO, "DTLS session [%d] become readable.", fd);
+            otbrLog(OTBR_LOG_INFO, OTBR_LOG_TAG, "DTLS session [%d] become readable.", fd);
             session->Process();
         }
     }
@@ -686,7 +687,7 @@ otbrError MbedtlsServer::SetPSK(const uint8_t *aPSK, uint8_t aLength)
 
     otbrError ret = OTBR_ERROR_ERRNO;
 
-    otbrDump(OTBR_LOG_DEBUG, "DTLS PSK:", aPSK, aLength);
+    otbrDump(OTBR_LOG_DEBUG, OTBR_LOG_TAG, "DTLS PSK:", aPSK, aLength);
 
     VerifyOrExit(aLength <= sizeof(mPSK), errno = EINVAL);
 
@@ -725,7 +726,7 @@ otbrError MbedtlsServer::SetSeed(const uint8_t *aSeed, uint16_t aLength)
 
     otbrError ret = OTBR_ERROR_ERRNO;
 
-    otbrDump(OTBR_LOG_DEBUG, "DTLS seed:", aSeed, aLength);
+    otbrDump(OTBR_LOG_DEBUG, OTBR_LOG_TAG, "DTLS seed:", aSeed, aLength);
 
     VerifyOrExit(aLength <= sizeof(mSeed), errno = EINVAL);
 

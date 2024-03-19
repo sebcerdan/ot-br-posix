@@ -42,7 +42,10 @@ namespace otbr {
 
 AgentInstance::AgentInstance(Ncp::Controller *aNcp)
     : mNcp(aNcp)
-    , mBorderAgent(aNcp)
+#if OTBR_ENABLE_MDNS_AVAHI || OTBR_ENABLE_MDNS_MDNSSD || OTBR_ENABLE_MDNS_MOJO
+    , mPublisher(Mdns::Publisher::Create([this](Mdns::Publisher::State aState) { this->HandleMdnsState(aState); }))
+#endif
+    , mBorderAgent(aNcp, *mPublisher)
 {
 }
 
@@ -55,7 +58,7 @@ otbrError AgentInstance::Init(void)
     mBorderAgent.Init();
 
 exit:
-    otbrLogResult("Initialize OpenThread Border Router Agent", error);
+    otbrLogResult(error, "Initialize OpenThread Border Router Agent");
     return error;
 }
 
@@ -72,9 +75,29 @@ void AgentInstance::Process(const otSysMainloopContext &aMainloop)
     mBorderAgent.Process(aMainloop.mReadFdSet, aMainloop.mWriteFdSet, aMainloop.mErrorFdSet);
 }
 
+void AgentInstance::HandleMdnsState(Mdns::Publisher::State aState)
+{
+
+    OTBR_UNUSED_VARIABLE(aState);
+
+#if OTBR_ENABLE_BORDER_AGENT
+    mBorderAgent.HandleMdnsState(aState);
+#endif
+#if OTBR_ENABLE_SRP_ADVERTISING_PROXY
+    mAdvertisingProxy.HandleMdnsState(aState);
+#endif
+#if OTBR_ENABLE_DNSSD_DISCOVERY_PROXY
+    mDiscoveryProxy.HandleMdnsState(aState);
+#endif
+#if OTBR_ENABLE_TREL
+    mTrelDnssd.HandleMdnsState(aState);
+#endif
+}
+
 AgentInstance::~AgentInstance(void)
 {
     Ncp::Controller::Destroy(mNcp);
 }
+
 
 } // namespace otbr
