@@ -52,6 +52,8 @@
 #include "utils/hex.hpp"
 #include "utils/strcpy_utils.hpp"
 
+#define OTBR_LOG_TAG "Border Agent"
+
 namespace otbr {
 
 static const char    kBorderAgentServiceType[]    = "_meshcop._udp"; ///< Border agent service type of mDNS
@@ -412,7 +414,7 @@ void BorderAgent::SendToCommissioner(void *aContext, int aEvent, va_list aArgume
         VerifyOrExit(sent == static_cast<ssize_t>(length), perror("send to commissioner"));
     }
 
-    otbrLog(OTBR_LOG_DEBUG, "Sent to commissioner");
+    otbrLog(OTBR_LOG_DEBUG, OTBR_LOG_TAG, "Sent to commissioner");
 
 exit:
     return;
@@ -427,7 +429,7 @@ void BorderAgent::UpdateFdSet(fd_set & aReadFdSet,
 {
     if (mPublisher != NULL)
     {
-        mPublisher->UpdateFdSet(aReadFdSet, aWriteFdSet, aErrorFdSet, aMaxFd, aTimeout);
+        mPublisher.UpdateFdSet(aReadFdSet, aWriteFdSet, aErrorFdSet, aMaxFd, aTimeout);
     }
 
 #if OTBR_ENABLE_NCP_WPANTUND
@@ -448,7 +450,7 @@ void BorderAgent::Process(const fd_set &aReadFdSet, const fd_set &aWriteFdSet, c
 {
     if (mPublisher != NULL)
     {
-        mPublisher->Process(aReadFdSet, aWriteFdSet, aErrorFdSet);
+        mPublisher.Process(aReadFdSet, aWriteFdSet, aErrorFdSet);
     }
 
 #if OTBR_ENABLE_NCP_WPANTUND
@@ -485,7 +487,7 @@ static const char *ThreadVersionToString(uint16_t aThreadVersion)
     }
 }
 #endif
-
+/*
 void BorderAgent::PublishService(void)
 {
     char xpanid[sizeof(mExtPanId) * 2 + 1];
@@ -496,10 +498,10 @@ void BorderAgent::PublishService(void)
 
 #if OTBR_ENABLE_NCP_OPENTHREAD
     assert(mThreadVersion != 0);
-    mPublisher->PublishService(kBorderAgentUdpPort, mNetworkName, kBorderAgentServiceType, "nn", mNetworkName, "xp",
+    mPublisher.PublishService(kBorderAgentUdpPort, mNetworkName, kBorderAgentServiceType, "nn", mNetworkName, "xp",
                                xpanid, "tv", ThreadVersionToString(mThreadVersion), NULL);
 #else
-    mPublisher->PublishService(kBorderAgentUdpPort, mNetworkName, kBorderAgentServiceType, "nn", mNetworkName, "xp",
+    mPublisher.PublishService(kBorderAgentUdpPort, mNetworkName, kBorderAgentServiceType, "nn", mNetworkName, "xp",
                                xpanid, NULL);
 #endif
 }
@@ -512,30 +514,30 @@ void BorderAgent::StartPublishService(void)
     VerifyOrExit(mThreadVersion != 0);
 #endif
 
-    if (mPublisher->IsStarted())
+    if (mPublisher.IsStarted())
     {
         PublishService();
     }
     else
     {
-        mPublisher->Start();
+        mPublisher.Start();
     }
 
 exit:
-    otbrLog(OTBR_LOG_INFO, "Start publishing service");
+    otbrLog(OTBR_LOG_INFO, OTBR_LOG_TAG, "Start publishing service");
 }
 
 void BorderAgent::StopPublishService(void)
 {
     VerifyOrExit(mPublisher != NULL);
 
-    if (mPublisher->IsStarted())
+    if (mPublisher.IsStarted())
     {
-        mPublisher->Stop();
+        mPublisher.Stop();
     }
 
 exit:
-    otbrLog(OTBR_LOG_INFO, "Stop publishing service");
+    otbrLog(OTBR_LOG_INFO, OTBR_LOG_TAG, "Stop publishing service");
 }
 
 void BorderAgent::SetNetworkName(const char *aNetworkName)
@@ -546,7 +548,7 @@ void BorderAgent::SetNetworkName(const char *aNetworkName)
     if (mThreadStarted)
     {
         // Restart publisher to publish new service name.
-        mPublisher->Stop();
+        mPublisher.Stop();
         StartPublishService();
     }
 #endif
@@ -574,7 +576,7 @@ void BorderAgent::SetThreadVersion(uint16_t aThreadVersion)
     }
 #endif
 }
-
+*/
 void BorderAgent::HandlePSKc(void *aContext, int aEvent, va_list aArguments)
 {
     assert(aEvent == Ncp::kEventPSKc);
@@ -604,7 +606,7 @@ void BorderAgent::HandlePSKc(const uint8_t *aPSKc)
         Stop();
     }
 
-    otbrLog(OTBR_LOG_INFO, "PSKc is %s", (mPSKcInitialized ? "initialized" : "not initialized"));
+    otbrLog(OTBR_LOG_INFO, OTBR_LOG_TAG, "PSKc is %s", (mPSKcInitialized ? "initialized" : "not initialized"));
 }
 
 void BorderAgent::HandleThreadState(bool aStarted)
@@ -624,7 +626,7 @@ void BorderAgent::HandleThreadState(bool aStarted)
     }
 
 exit:
-    otbrLog(OTBR_LOG_INFO, "Thread is %s", (aStarted ? "up" : "down"));
+    otbrLog(OTBR_LOG_INFO, OTBR_LOG_TAG, "Thread is %s", (aStarted ? "up" : "down"));
 }
 
 void BorderAgent::HandleThreadState(void *aContext, int aEvent, va_list aArguments)
