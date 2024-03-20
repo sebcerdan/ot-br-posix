@@ -51,6 +51,7 @@ OTBR also runs directly on supported platforms like the Raspberry Pi 3B. If you'
 
 If you're interested in contributing to OpenThread Border Router, read on.
 
+
 # Contributing
 
 We would love for you to contribute to OpenThread Border Router and help make it even better than it is today! See our [Contributing Guidelines](https://github.com/openthread/ot-br-posix/blob/master/CONTRIBUTING.md) for more information.
