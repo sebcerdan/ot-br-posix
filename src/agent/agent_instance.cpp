@@ -46,6 +46,12 @@ AgentInstance::AgentInstance(Ncp::Controller *aNcp)
     , mPublisher(Mdns::Publisher::Create([this](Mdns::Publisher::State aState) { this->HandleMdnsState(aState); }))
 #endif
     , mBorderAgent(aNcp, *mPublisher)
+#if OTBR_ENABLE_SRP_ADVERTISING_PROXY
+    , mAdvertisingProxy(mNcp, *mPublisher)
+#endif
+#if OTBR_ENABLE_DNSSD_DISCOVERY_PROXY
+    , mDiscoveryProxy(mNcp, *mPublisher)
+#endif
 {
 }
 
@@ -53,9 +59,19 @@ otbrError AgentInstance::Init(void)
 {
     otbrError error = OTBR_ERROR_NONE;
 
+    mPublisher->Start();
+
     SuccessOrExit(error = mNcp->Init());
 
     mBorderAgent.Init();
+
+#if OTBR_ENABLE_SRP_ADVERTISING_PROXY
+    mAdvertisingProxy.SetEnabled(true);
+#endif
+
+#if OTBR_ENABLE_DNSSD_DISCOVERY_PROXY
+    mDiscoveryProxy.SetEnabled(true);
+#endif
 
 exit:
     otbrLogResult(error, "Initialize OpenThread Border Router Agent");

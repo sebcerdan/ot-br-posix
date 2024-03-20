@@ -81,6 +81,8 @@ static void HandleSignal(int aSignal)
     signal(aSignal, SIG_DFL);
 }
 
+
+#if 0
 static int Mainloop(otbr::AgentInstance &aInstance, const char *aInterfaceName)
 {
     int error = EXIT_FAILURE;
@@ -157,6 +159,7 @@ static int Mainloop(otbr::AgentInstance &aInstance, const char *aInterfaceName)
 
     return error;
 }
+#endif
 
 static void PrintHelp(const char *aProgramName)
 {
@@ -180,12 +183,20 @@ static void OnAllocateFailed(void)
 
 int main(int argc, char *argv[])
 {
-    otbrLogLevel           logLevel = OTBR_LOG_INFO;
-    int                    opt;
-    int                    ret           = EXIT_SUCCESS;
-    const char *           interfaceName = kDefaultInterfaceName;
     otbr::Ncp::Controller *ncp           = NULL;
-    bool                   verbose       = false;
+    otbrLogLevel              logLevel = GetDefaultLogLevel();
+    int                       opt;
+    int                       ret               = EXIT_SUCCESS;
+    const char               *interfaceName     = kDefaultInterfaceName;
+    bool                      verbose           = false;
+    bool                      syslogDisable     = false;
+    bool                      printRadioVersion = false;
+    bool                      enableAutoAttach  = true;
+    const char               *restListenAddress = "";
+    int                       restListenPort    = kPortNumber;
+    std::vector<const char *> radioUrls;
+    std::vector<const char *> backboneInterfaceNames;
+    long                      parseResult;
 
     std::set_new_handler(OnAllocateFailed);
 
@@ -234,9 +245,6 @@ int main(int argc, char *argv[])
     otbrLog(OTBR_LOG_INFO, OTBR_LOG_TAG, "Thread interface %s", interfaceName);
 
     {
-        otbr::AgentInstance instance(ncp);
-
-        SuccessOrExit(ret = instance.Init());
 
 #if OTBR_ENABLE_OPENWRT
         ControllerOpenThread *ncpThread = reinterpret_cast<ControllerOpenThread *>(ncp);
@@ -244,8 +252,19 @@ int main(int argc, char *argv[])
         UbusServerInit(ncpThread, &sThreadMutex);
         std::thread(UbusServerRun).detach();
 #endif
+    {
+        ControllerOpenThread *  ncpOpenThread = reinterpret_cast<ControllerOpenThread *>(ncp);
+        otbr::Application app(ncpOpenThread, interfaceName, backboneInterfaceNames, radioUrls, enableAutoAttach, restListenAddress,
+                              restListenPort);
 
-        SuccessOrExit(ret = Mainloop(instance, interfaceName));
+        gApp = &app;
+        app.Init();
+
+        ret = app.Run();
+
+        app.Deinit();
+    }
+       // SuccessOrExit(ret = Mainloop(instance, interfaceName));
     }
 
     otbrLogDeinit();
