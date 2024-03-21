@@ -35,6 +35,7 @@ DIST_SUBDIRS                                         = \
     commissioner                                       \
     common                                             \
     dbus                                               \
+
     utils                                              \
     web                                                \
     sdp_proxy					       \
