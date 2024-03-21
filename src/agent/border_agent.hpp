@@ -63,9 +63,8 @@ public:
      * @param[in]   aNcp            A pointer to the NCP controller.
      *
      */
-    BorderAgent(Ncp::Controller *aNcp);
-
-    ~BorderAgent(void);
+    BorderAgent(Ncp::Controller *aNcp, Mdns::Publisher &aPublisher);
+    ~BorderAgent(void) = default;
 
     /**
      * This method initialize border agent service.
@@ -110,16 +109,20 @@ private:
      *
      */
     void Stop(void);
+    bool IsEnabled(void) const { return mIsEnabled; };
+    void PublishMeshCopService(void);
+    void UpdateMeshCopService(void);
+    void UnpublishMeshCopService(void);
 
 #if OTBR_ENABLE_NCP_WPANTUND
     static void SendToCommissioner(void *aContext, int aEvent, va_list aArguments);
 #endif
 
-    static void HandleMdnsState(void *aContext, Mdns::State aState)
+    static void HandleMdnsState(void *aContext, Mdns::Publisher::State aState)
     {
         static_cast<BorderAgent *>(aContext)->HandleMdnsState(aState);
     }
-    void HandleMdnsState(Mdns::State aState);
+    void HandleMdnsState(Mdns::Publisher::State aState);
     void PublishService(void);
     void StartPublishService(void);
     void StopPublishService(void);
@@ -136,18 +139,37 @@ private:
     static void HandleExtPanId(void *aContext, int aEvent, va_list aArguments);
     static void HandleThreadVersion(void *aContext, int aEvent, va_list aArguments);
 
-    Mdns::Publisher *mPublisher;
+    Mdns::Publisher &mPublisher;
     Ncp::Controller *mNcp;
 
 #if OTBR_ENABLE_NCP_WPANTUND
     int mSocket;
 #endif
+    bool     mIsEnabled;
     uint8_t  mExtPanId[kSizeExtPanId];
     bool     mExtPanIdInitialized;
     uint16_t mThreadVersion;
     char     mNetworkName[kSizeNetworkName + 1];
     bool     mThreadStarted;
     bool     mPSKcInitialized;
+
+    std::vector<uint8_t> mVendorOui;
+
+    std::string mVendorName;
+    std::string mProductName;
+
+    // The base service instance name typically consists of the vendor and product name. But it can
+    // also be overridden by `OTBR_MESHCOP_SERVICE_INSTANCE_NAME` or method `SetMeshCopServiceValues()`.
+    // For example, this value can be "OpenThread Border Router".
+    std::string mBaseServiceInstanceName;
+
+
+    // The actual instance name advertised in the mDNS service. This is usually the value of
+    // `mBaseServiceInstanceName` plus the Extended Address and optional random number for avoiding
+    // conflicts. For example, this value can be "OpenThread Border Router #7AC3" or
+    // "OpenThread Border Router #7AC3 (14379)".
+    std::string mServiceInstanceName;
+
 };
 
 /**

@@ -38,7 +38,7 @@
 #include <memory>
 
 #include <openthread/instance.h>
-#include <openthread/openthread-system.h>
+//#include <openthread/openthread-system.h>
 
 #include "ncp.hpp"
 #include "agent/thread_helper.hpp"

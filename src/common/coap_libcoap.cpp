@@ -36,6 +36,7 @@
 #include <errno.h>
 #include <stdio.h>
 
+#define OTBR_LOG_TAG "coap"
 #include "common/code_utils.hpp"
 #include "common/logging.hpp"
 #include "common/types.hpp"
@@ -196,7 +197,7 @@ otbrError AgentLibcoap::Send(Message &       aMessage,
 exit:
     if (ret != OTBR_ERROR_NONE)
     {
-        otbrLog(OTBR_LOG_ERR, "CoAP no memory for callback!");
+        otbrLog(OTBR_LOG_ERR, OTBR_LOG_TAG, "CoAP no memory for callback!");
         message.Free();
     }
 
@@ -226,7 +227,7 @@ void AgentLibcoap::HandleRequest(struct coap_resource_t *aResource,
                                  const uint8_t *         aAddress,
                                  uint16_t                aPort)
 {
-    VerifyOrExit(mResources.count(aResource), otbrLog(OTBR_LOG_WARNING, "CoAP received unexpected request!"));
+    VerifyOrExit(mResources.count(aResource), otbrLog(OTBR_LOG_WARNING, OTBR_LOG_TAG, "CoAP received unexpected request!"));
 
     {
         const Resource &resource = *mResources[aResource];
@@ -265,7 +266,7 @@ void AgentLibcoap::HandleResponse(coap_context_t *       aCoap,
 {
     MessageMeta meta;
 
-    VerifyOrExit(aSent != NULL, otbrLog(OTBR_LOG_ERR, "request not found!"));
+    VerifyOrExit(aSent != NULL, otbrLog(OTBR_LOG_ERR, OTBR_LOG_TAG, "request not found!"));
 
     memcpy(&meta, (unsigned char *)aSent->hdr + aSent->length, sizeof(meta));
 
@@ -293,7 +294,7 @@ otbrError AgentLibcoap::AddResource(const Resource &aResource)
     {
         if (it->second == &aResource)
         {
-            otbrLog(OTBR_LOG_ERR, "CoAP resource already added!");
+            otbrLog(OTBR_LOG_ERR, OTBR_LOG_TAG, "CoAP resource already added!");
             ExitNow(errno = EEXIST);
             break;
         }

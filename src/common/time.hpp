@@ -26,16 +26,47 @@
  *    POSSIBILITY OF SUCH DAMAGE.
  */
 
+/**
+ * @file
+ * This file includes definitions for time functions.
+ */
+
 #ifndef OTBR_COMMON_TIME_HPP_
 #define OTBR_COMMON_TIME_HPP_
 
 #include "openthread-br/config.h"
+
+#include <chrono>
 
 #include <stdint.h>
 
 #include <sys/time.h>
 
 namespace otbr {
+
+using Seconds      = std::chrono::seconds;
+using Milliseconds = std::chrono::milliseconds;
+using Microseconds = std::chrono::microseconds;
+using Clock        = std::chrono::steady_clock;
+using Timepoint    = Clock::time_point;
+
+template <class D> D FromTimeval(const timeval &aTime)
+{
+    return std::chrono::duration_cast<D>(Microseconds{aTime.tv_usec}) +
+           std::chrono::duration_cast<D>(Seconds{aTime.tv_sec});
+}
+
+template <class D> timeval ToTimeval(const D &aDuration)
+{
+    timeval      ret;
+    const size_t kMicrosecondsPeriod = 1000000;
+    auto         microseconds        = std::chrono::duration_cast<Microseconds>(aDuration).count();
+
+    ret.tv_sec  = microseconds / kMicrosecondsPeriod;
+    ret.tv_usec = microseconds % kMicrosecondsPeriod;
+
+    return ret;
+}
 
 /**
  * This method returns the timestamp in miniseconds of @aTime.
@@ -63,6 +94,7 @@ inline unsigned long GetNow(void)
     gettimeofday(&now, NULL);
     return static_cast<unsigned long>(now.tv_sec * 1000 + now.tv_usec / 1000);
 }
+
 
 } // namespace otbr
 

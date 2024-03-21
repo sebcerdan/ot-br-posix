@@ -60,7 +60,7 @@ install_packages_apt()
 
     # For libcoap to generate .sym and .map
     # TODO remove this in release mode
-    sudo apt-get install -y ctags
+    # sudo apt-get install -y ctags
 
     # Boost
     sudo apt-get install -y libboost-dev libboost-filesystem-dev libboost-system-dev

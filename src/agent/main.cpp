@@ -39,6 +39,8 @@
 #include <string.h>
 #include <unistd.h>
 
+#define OTBR_LOG_TAG "Main Agent"
+
 #include "agent/agent_instance.hpp"
 #include "agent/ncp.hpp"
 #include "common/code_utils.hpp"
@@ -90,7 +92,7 @@ static int Mainloop(otbr::AgentInstance &aInstance, const char *aInterfaceName)
 #else
     (void)aInterfaceName;
 #endif
-    otbrLog(OTBR_LOG_INFO, "Border router agent started.");
+    otbrLog(OTBR_LOG_INFO, OTBR_LOG_TAG, "Border router agent started.");
 
     // allow quitting elegantly
     signal(SIGTERM, HandleSignal);
@@ -148,7 +150,7 @@ static int Mainloop(otbr::AgentInstance &aInstance, const char *aInterfaceName)
             sThreadMutex.lock();
 #endif
             error = OTBR_ERROR_ERRNO;
-            otbrLog(OTBR_LOG_ERR, "select() failed", strerror(errno));
+            otbrLog(OTBR_LOG_ERR, OTBR_LOG_TAG, "select() failed", strerror(errno));
             break;
         }
     }
@@ -172,13 +174,13 @@ static void PrintVersion(void)
 
 static void OnAllocateFailed(void)
 {
-    otbrLog(OTBR_LOG_CRIT, "Allocate failure, exiting...");
+    otbrLog(OTBR_LOG_CRIT, OTBR_LOG_TAG, "Allocate failure, exiting...");
     exit(1);
 }
 
 int main(int argc, char *argv[])
 {
-    int                    logLevel = OTBR_LOG_INFO;
+    otbrLogLevel           logLevel = OTBR_LOG_INFO;
     int                    opt;
     int                    ret           = EXIT_SUCCESS;
     const char *           interfaceName = kDefaultInterfaceName;
@@ -192,7 +194,7 @@ int main(int argc, char *argv[])
         switch (opt)
         {
         case 'd':
-            logLevel = atoi(optarg);
+            logLevel = (otbrLogLevel)atoi(optarg);
             break;
 
         case 'I':
@@ -229,7 +231,7 @@ int main(int argc, char *argv[])
 
     otbrLogInit(kSyslogIdent, logLevel, verbose);
 
-    otbrLog(OTBR_LOG_INFO, "Thread interface %s", interfaceName);
+    otbrLog(OTBR_LOG_INFO, OTBR_LOG_TAG, "Thread interface %s", interfaceName);
 
     {
         otbr::AgentInstance instance(ncp);
