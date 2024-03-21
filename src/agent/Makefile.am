@@ -76,8 +76,9 @@ libotbr_agent_la_CXXFLAGS                                     = \
     $(NULL)
 
 libotbr_agent_la_SOURCES                                      = \
-    agent_instance.cpp                                          \
+    application.cpp 						\
     border_agent.cpp                                            \
+    mdns.cpp							\
     $(NULL)
 
 if OTBR_ENABLE_NCP_OPENTHREAD
@@ -174,6 +175,7 @@ noinst_HEADERS        = \
     ncp_wpantund.hpp    \
     thread_helper.hpp   \
     uris.hpp            \
+    application.hpp     \
     $(NULL)
 
 if OTBR_ENABLE_OPENWRT

@@ -44,7 +44,11 @@
 #if OTBR_ENABLE_BORDER_AGENT
 #include "border_agent/border_agent.hpp"
 #endif
-#include "ncp/ncp_openthread.hpp"
+#if OTBR_ENABLE_NCP_WPANTUND
+  #include "agent/ncp.hpp"
+#else
+  #include "agent/ncp_openthread.hpp"
+#endif
 #if OTBR_ENABLE_BACKBONE_ROUTER
 #include "backbone_router/backbone_agent.hpp"
 #endif
@@ -60,7 +64,9 @@
 #if OTBR_ENABLE_VENDOR_SERVER
 #include "agent/vendor.hpp"
 #endif
-#include "utils/infra_link_selector.hpp"
+#include "common/code_utils.hpp"
+#include "agent/mdns.hpp"
+//#include "utils/infra_link_selector.hpp"
 
 namespace otbr {
 
@@ -99,7 +105,7 @@ public:
      * @param[in] aRestListenPort        Network port to listen on.
      *
      */
-    explicit Application(otbr::Ncp::ControllerOpenThread *aNcp 
+    explicit Application(otbr::Ncp::Controller           *aNcp,
                          const std::string               &aInterfaceName,
                          const std::vector<const char *> &aBackboneInterfaceNames,
                          const std::vector<const char *> &aRadioUrls,
@@ -133,8 +139,12 @@ public:
      *
      * @returns The OpenThread controller object.
      */
+    #if OTBR_ENABLE_NCP_WPANTUND
+    Ncp::Controller &GetNcp(void) { return *mNcp; }
+    #else
     Ncp::ControllerOpenThread &GetNcp(void) { return mNcp; }
-
+    #endif
+    
 #if OTBR_ENABLE_MDNS
     /**
      * Get the Publisher object the application is using.
@@ -259,10 +269,14 @@ private:
 
     std::string mInterfaceName;
 #if __linux__
-    otbr::Utils::InfraLinkSelector mInfraLinkSelector;
+//    otbr::Utils::InfraLinkSelector mInfraLinkSelector;
 #endif
     const char               *mBackboneInterfaceName;
+#if OTBR_ENABLE_NCP_WPANTUND
+    Ncp::Controller *mNcp;
+#else
     Ncp::ControllerOpenThread mNcp;
+#endif
 #if OTBR_ENABLE_MDNS
     std::unique_ptr<Mdns::Publisher> mPublisher;
 #endif

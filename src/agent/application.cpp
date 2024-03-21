@@ -40,14 +40,14 @@
 #include "agent/application.hpp"
 #include "common/code_utils.hpp"
 #include "common/mainloop_manager.hpp"
-#include "utils/infra_link_selector.hpp"
+//#include "utils/infra_link_selector.hpp"
 
 namespace otbr {
 
 std::atomic_bool     Application::sShouldTerminate(false);
 const struct timeval Application::kPollTimeout = {10, 0};
 
-Application::Application(ControllerOpenThread            *aNcp
+Application::Application(Controller                     *aNcp
                          const std::string               &aInterfaceName,
                          const std::vector<const char *> &aBackboneInterfaceNames,
                          const std::vector<const char *> &aRadioUrls,
@@ -56,8 +56,8 @@ Application::Application(ControllerOpenThread            *aNcp
                          int                              aRestListenPort)
     : mInterfaceName(aInterfaceName)
 #if __linux__
-    , mInfraLinkSelector(aBackboneInterfaceNames)
-    , mBackboneInterfaceName(mInfraLinkSelector.Select())
+ //  , mInfraLinkSelector(aBackboneInterfaceNames)
+ //  , mBackboneInterfaceName(mInfraLinkSelector.Select())
 #else
     , mBackboneInterfaceName(aBackboneInterfaceNames.empty() ? "" : aBackboneInterfaceNames.front())
 #endif
@@ -165,7 +165,8 @@ otbrError Application::Run()
     otbrLogInfo("Thread Border Router started on AIL %s.", mBackboneInterfaceName);
 
 #if OTBR_ENABLE_NCP_OPENTHREAD && OTBR_ENABLE_DBUS_SERVER
-    std::unique_ptr<DBusAgent> dbusAgent     = std::unique_ptr<DBusAgent>(new DBusAgent(mInterfaceName, GetNcp()));
+    ControllerOpenThread *     ncpOpenThread = reinterpret_cast<ControllerOpenThread *>(&aInstance.GetNcp());
+    std::unique_ptr<DBusAgent> dbusAgent     = std::unique_ptr<DBusAgent>(new DBusAgent(mInterfaceName, ncpOpenThread));
     dbusAgent->Init();
 #else
     (void)mInterfaceName;

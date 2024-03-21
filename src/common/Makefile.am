@@ -57,6 +57,10 @@ noinst_LTLIBRARIES                                   += \
     $(NULL)
 endif
 
+libotbr_common_la_SOURCES                            = \
+    code_utils.cpp                                     \
+    $(NULL)
+
 libotbr_logging_la_CPPFLAGS                           = \
     -I$(top_srcdir)/include                             \
     -I$(top_srcdir)/src                                 \

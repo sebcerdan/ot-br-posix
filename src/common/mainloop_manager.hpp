@@ -42,7 +42,12 @@
 
 #include "common/code_utils.hpp"
 #include "common/mainloop.hpp"
-#include "ncp/ncp_openthread.hpp"
+
+#if OTBR_ENABLE_NCP_WPANTUND
+  #include "agent/ncp.hpp"
+#else
+  #include "agent/ncp_openthread.hpp"
+#endif
 
 namespace otbr {
 

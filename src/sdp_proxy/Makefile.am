@@ -1,5 +1,5 @@
 #
-#  Copyright (c) 2017, The OpenThread Authors.
+#  Copyright (c) 2018, The OpenThread Authors.
 #  All rights reserved.
 #
 #  Redistribution and use in source and binary forms, with or without
@@ -28,38 +28,50 @@
 
 include $(abs_top_nlbuild_autotools_dir)/automake/pre.am
 
-# Always package (e.g. for 'make dist') these subdirectories.
+include $(top_srcdir)/third_party/openthread/mbedtls.mk
 
-DIST_SUBDIRS                                         = \
-    agent                                              \
-    commissioner                                       \
-    common                                             \
-    dbus                                               \
-    utils                                              \
-    web                                                \
-    sdp_proxy					       \
+noinst_HEADERS                                        = \
+    advertising_proxy.hpp                               \
+    discovery_proxy.hpp                                 \
     $(NULL)
 
-# Always build (e.g. for 'make all') these subdirectories.
-
-SUBDIRS                                              = \
-    common                                             \
-    utils                                              \
+libsdp_proxy_la_SOURCES                       = \
+    advertising_proxy.cpp                               \
+    discovery_proxy.cpp                                 \
     $(NULL)
 
-if OTBR_ENABLE_DBUS_SERVER
-SUBDIRS                                             += dbus
-endif
+libsdp_proxy_la_CPPFLAGS                      = \
+    -I$(top_srcdir)/include                             \
+    -I$(top_srcdir)/src                                 \
+    $(MBEDTLS_CPPFLAGS)                                 \
+    $(NULL)
 
-SUBDIRS                                             += agent
-SUBDIRS                                             += sdp_proxy
+libsdp_proxy_la_LIBADD                        = \
+    $(top_builddir)/src/common/libotbr-coap.la          \
+    $(top_builddir)/src/common/libotbr-dtls.la          \
+    $(top_builddir)/src/common/libotbr-logging.la       \
+    $(top_builddir)/src/utils/libutils.la               \
+    $(NULL)
 
-if OTBR_ENABLE_COMMISSIONER
-SUBDIRS                                             += commissioner
-endif
+libsdp_proxy_la_LDFLAGS                       = \
+    -static                                             \
+    $(NULL)
 
-if OTBR_ENABLE_WEB_SERVICE
-SUBDIRS                                             += web
-endif
+libsdp_proxy_SOURCES                             = \
+    main.cpp                                            \
+    $(NULL)
+
+libsdp_proxy_LDADD                               = \
+    libotbr-commissioner.la                             \
+    $(NULL)
+
+libsdp_proxy_CPPFLAGS                            = \
+    -I$(top_srcdir)/include                             \
+    $(libotbr_commissioner_la_CPPFLAGS)                 \
+    $(NULL)
+
+lisdp_proxy_LDFLAGS                             = \
+    -static                                             \
+    $(NULL)
 
 include $(abs_top_nlbuild_autotools_dir)/automake/post.am

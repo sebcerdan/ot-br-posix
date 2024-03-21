@@ -41,11 +41,13 @@
 
 #define OTBR_LOG_TAG "Main Agent"
 
-#include "agent/agent_instance.hpp"
+
+#include "agent/application.hpp"
 #include "agent/ncp.hpp"
 #include "common/code_utils.hpp"
 #include "common/logging.hpp"
 #include "common/types.hpp"
+
 
 #if OTBR_ENABLE_NCP_OPENTHREAD
 #include "agent/ncp_openthread.hpp"
@@ -66,7 +68,7 @@ static std::mutex sThreadMutex;
 
 static const char kSyslogIdent[]          = "otbr-agent";
 static const char kDefaultInterfaceName[] = "wpan0";
-
+static otbr::Application *gApp = nullptr;
 // Default poll timeout.
 static const struct timeval kPollTimeout = {10, 0};
 static const struct option  kOptions[]   = {{"debug-level", required_argument, NULL, 'd'},
@@ -81,6 +83,8 @@ static void HandleSignal(int aSignal)
     signal(aSignal, SIG_DFL);
 }
 
+// Port number used by Rest server.
+static const uint32_t kPortNumber = 8081;
 
 #if 0
 static int Mainloop(otbr::AgentInstance &aInstance, const char *aInterfaceName)
@@ -184,7 +188,7 @@ static void OnAllocateFailed(void)
 int main(int argc, char *argv[])
 {
     otbr::Ncp::Controller *ncp           = NULL;
-    otbrLogLevel              logLevel = GetDefaultLogLevel();
+    otbrLogLevel              logLevel   = OTBR_LOG_INFO;
     int                       opt;
     int                       ret               = EXIT_SUCCESS;
     const char               *interfaceName     = kDefaultInterfaceName;
@@ -253,8 +257,7 @@ int main(int argc, char *argv[])
         std::thread(UbusServerRun).detach();
 #endif
     {
-        ControllerOpenThread *  ncpOpenThread = reinterpret_cast<ControllerOpenThread *>(ncp);
-        otbr::Application app(ncpOpenThread, interfaceName, backboneInterfaceNames, radioUrls, enableAutoAttach, restListenAddress,
+        otbr::Application app(ncp, interfaceName, backboneInterfaceNames, radioUrls, enableAutoAttach, restListenAddress,
                               restListenPort);
 
         gApp = &app;
