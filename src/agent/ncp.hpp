@@ -40,7 +40,7 @@
 #include <stddef.h>
 
 #include "common/event_emitter.hpp"
-#include "common/mainloop.h"
+#include "common/mainloop.hpp"
 #include "common/types.hpp"
 
 namespace otbr {

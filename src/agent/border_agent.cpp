@@ -52,8 +52,6 @@
 #include "utils/hex.hpp"
 #include "utils/strcpy_utils.hpp"
 
-#define OTBR_LOG_TAG "Border Agent"
-
 namespace otbr {
 
 static const char    kBorderAgentServiceType[]    = "_meshcop._udp"; ///< Border agent service type of mDNS

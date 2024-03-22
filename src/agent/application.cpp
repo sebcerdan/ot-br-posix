@@ -47,7 +47,7 @@ namespace otbr {
 std::atomic_bool     Application::sShouldTerminate(false);
 const struct timeval Application::kPollTimeout = {10, 0};
 
-Application::Application(Controller                     *aNcp
+Application::Application(Ncp::Controller                 *aNcp,
                          const std::string               &aInterfaceName,
                          const std::vector<const char *> &aBackboneInterfaceNames,
                          const std::vector<const char *> &aRadioUrls,
@@ -102,7 +102,8 @@ Application::Application(Controller                     *aNcp
 }
 
 void Application::Init(void)
-{
+{ 
+   otbrError error = OTBR_ERROR_NONE;	
    SuccessOrExit(error = mNcp->Init());
 
 #if OTBR_ENABLE_MDNS
@@ -138,6 +139,9 @@ void Application::Init(void)
 #if OTBR_ENABLE_VENDOR_SERVER
     mVendorServer->Init();
 #endif
+
+exit:
+    otbrLogInfo("Initialize OpenThread Border Router Agent", error);
 }
 
 void Application::Deinit(void)
@@ -155,7 +159,9 @@ void Application::Deinit(void)
     mPublisher->Stop();
 #endif
 
-    mNcp.Deinit();
+#ifndef OTBR_ENABLE_NCP_WPANTUND
+    mNcp->Deinit();
+#endif
 }
 
 otbrError Application::Run()
@@ -231,6 +237,7 @@ otbrError Application::Run()
 #if OTBR_ENABLE_NCP_OPENTHREAD && OTBR_ENABLE_DBUS_SERVER
             dbusAgent->Process(mainloop.mReadFdSet, mainloop.mWriteFdSet, mainloop.mErrorFdSet);
 #else
+/*	    
     #if __linux__
             {
                 const char *newInfraLink = mInfraLinkSelector.Select();
@@ -242,6 +249,7 @@ otbrError Application::Run()
                 }
             }
     #endif
+*/
 #endif
         }
         else if (errno != EINTR)

@@ -39,7 +39,8 @@ noinst_HEADERS                                        = \
     event_emitter.hpp                                   \
     libcoap.h                                           \
     logging.hpp                                         \
-    mainloop.h                                          \
+    mainloop.hpp                                        \
+    mainloop_manager.hpp                                \
     time.hpp                                            \
     tlv.hpp                                             \
     types.hpp                                           \
